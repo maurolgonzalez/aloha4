@@ -3,9 +3,54 @@ package com.salesforce.tests.fs;
 import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Scanner;
 
+enum FSType {
+    FILE, FOLDER
+}
 
+class Node {
+    String name;
+    Node father;
+    ArrayList<Node> childs;
+    FSType type;
+    private final String SEPARATOR = "/";
+
+    public Node(String name, FSType type, Node father) {
+        this.name = name;
+        this.type = type;
+        this.father = father;
+    }
+
+    @Override
+    public String toString() {
+        return SEPARATOR + name;
+    }
+}
+
+class OSFileSystem {
+    private static OSFileSystem osFileSystem;
+    private Node root;
+    private Node currentPath;
+
+    public static OSFileSystem getFileSystem() {
+        if (osFileSystem == null) {
+            osFileSystem = new OSFileSystem();
+        }
+
+        return osFileSystem;
+    }
+
+    private OSFileSystem() {
+        this.root = new Node("root", FSType.FOLDER, null);
+        currentPath = root;
+    }
+
+    public void printCurrentPath() {
+        System.out.println(currentPath);
+    }
+}
 interface Command {
     public void execute();
 }
@@ -14,8 +59,7 @@ class CurrentDir implements Command{
 
     public void execute()
     {
-        Path path = Paths.get(".");
-        System.out.println(path.toAbsolutePath());
+        OSFileSystem.getFileSystem().printCurrentPath();
     }
 }
 
@@ -67,7 +111,7 @@ class CreateDir implements Command{
     public CreateDir(String command)
     {
         String[] splittedCommands = command.split(" ");
-        if(splittedCommands.length == 2)        
+        if(splittedCommands.length == 2)
         {
             dirName = splittedCommands[1];
         }
@@ -80,11 +124,13 @@ class CreateDir implements Command{
     }
 }
 
+
 /**
  * The entry point for the Test program
  */
 public class Main {
-
+    
+    
     public static void main(String[] args) {
         /* Enter your code here. Read input from STDIN. Print output to STDOUT */
 
