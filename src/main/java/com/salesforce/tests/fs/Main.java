@@ -10,29 +10,79 @@ enum FSType {
     FILE, FOLDER
 }
 
-class Node {
+class FSObject {
     String name;
-    Node father;
-    ArrayList<Node> childs;
+    FSObject father;
+    ArrayList<FSObject> childs;
     FSType type;
     private final String SEPARATOR = "/";
 
-    public Node(String name, FSType type, Node father) {
+    public FSObject(String name, FSType type, FSObject father) {
         this.name = name;
         this.type = type;
         this.father = father;
+        this.childs = new ArrayList<FSObject>();
     }
 
     @Override
     public String toString() {
         return SEPARATOR + name;
     }
+
+    public String getAbsPath() {
+        if(father == null) {
+            return this.toString();
+        }
+        return father.getAbsPath() + this;
+    }
+
+    public void printAbsPath() {
+        System.out.println(getAbsPath());
+    }
+
+    public boolean existDir(String dirName) {
+        for(FSObject item: childs) {
+            if(item.name.compareTo(dirName) == 0 && item.type == FSType.FOLDER) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public FSObject getSubfolder(String dirName) {
+        for(FSObject item: childs) {
+            if(item.name.compareTo(dirName) == 0 && item.type == FSType.FOLDER) {
+                return item;
+            }
+        }
+
+        return null;
+    }
+
+
+    public boolean equals(FSObject otherNode) {
+        return this.name == otherNode.name 
+            && this.type == otherNode.type 
+            && this.father == otherNode.father;
+    }
+
+    public void createDir(String dirName) {
+        if(dirName.length() >= 100) {
+            System.out.println("Invalid File or Folder Name");
+        } else {
+            if(!this.existDir(dirName)) {
+                childs.add(new FSObject(dirName, FSType.FOLDER, this));
+            } else {
+                System.out.println("Directory already exists");
+            }
+        }        
+    }
 }
 
 class OSFileSystem {
     private static OSFileSystem osFileSystem;
-    private Node root;
-    private Node currentPath;
+    private FSObject root;
+    private FSObject currentPath;
 
     public static OSFileSystem getFileSystem() {
         if (osFileSystem == null) {
@@ -43,13 +93,27 @@ class OSFileSystem {
     }
 
     private OSFileSystem() {
-        this.root = new Node("root", FSType.FOLDER, null);
+        this.root = new FSObject("root", FSType.FOLDER, null);
         currentPath = root;
     }
 
-    public void printCurrentPath() {
-        System.out.println(currentPath);
+    public void printAbsPath() {
+        currentPath.printAbsPath();
     }
+
+    public void createDir(String dirName) {
+        currentPath.createDir(dirName);
+    }
+
+    public void changeDir(String dirName) {
+        FSObject subFolder = currentPath.getSubfolder(dirName);
+        if(subFolder == null) {
+            System.out.println("Directory not found");
+        } else {
+            currentPath = subFolder;
+        }
+    }
+
 }
 interface Command {
     public void execute();
@@ -59,7 +123,7 @@ class CurrentDir implements Command{
 
     public void execute()
     {
-        OSFileSystem.getFileSystem().printCurrentPath();
+        OSFileSystem.getFileSystem().printAbsPath();
     }
 }
 
@@ -119,11 +183,28 @@ class CreateDir implements Command{
 
     public void execute()
     {
-        File dir = new File(dirName);
-        dir.mkdir();
+        OSFileSystem.getFileSystem().createDir(dirName);
     }
 }
 
+class ChangeDir implements Command{
+
+    private String dirName = "";
+
+    public ChangeDir(String command)
+    {
+        String[] splittedCommands = command.split(" ");
+        if(splittedCommands.length == 2)
+        {
+            dirName = splittedCommands[1];
+        }
+    }
+
+    public void execute() {
+
+        OSFileSystem.getFileSystem().changeDir(dirName);        
+    }
+}
 
 /**
  * The entry point for the Test program
@@ -154,6 +235,9 @@ public class Main {
             } else if(command.startsWith("mkdir"))
             {
                 cmd = new CreateDir(command);
+            } else if(command.startsWith("cd"))
+            {
+                cmd = new ChangeDir(command);
             } 
 
             if(cmd != null)
