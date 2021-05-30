@@ -20,7 +20,8 @@ public class BaseTest {
 
     protected void runTest(String[] expectedOutput, String... input) {
         systemInMock.provideLines(input);
-        Main.main(new String[0]);
+        String[] args = {"RunUnitTests"};
+        Main.main(args);
         Assert.assertEquals(String.join("", expectedOutput),
                 systemOutRule.getLogWithNormalizedLineSeparator());
     }

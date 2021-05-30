@@ -1,5 +1,11 @@
 package com.salesforce.tests.fs;
 
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Scanner;
 
@@ -60,7 +66,7 @@ class Logger {
 /**
  * FSObject: Represent a file or folder into a File System
  */
-class FSObject {
+class FSObject implements Serializable {
     private String name;
     private FSObject father;
     private ArrayList<FSObject> childs;
@@ -159,22 +165,36 @@ class FSObject {
 /**
  * OSFileSystem: Represent a file system to operate on it
  */
-class OSFileSystem {
-    private static OSFileSystem osFileSystem;
+class OSFileSystem implements Serializable{
+    private static OSFileSystem INSTANCE = new OSFileSystem();
     private FSObject root;
     private FSObject currentPath;
 
     public static OSFileSystem getFileSystem() {
-        if (osFileSystem == null) {
-            osFileSystem = new OSFileSystem();
-        }
-
-        return osFileSystem;
+        
+        return INSTANCE;
     }
 
     private OSFileSystem() {
+        initialize();
+    }
+
+    private void initialize() {
         this.root = new FSObject("root", FSType.FOLDER, null);
         currentPath = root;
+    }
+
+    public void clean() {
+        initialize();
+    }
+
+    protected Object readResolve() {
+        return INSTANCE;
+    }
+
+    private void readObject(ObjectInputStream ois) throws IOException, ClassNotFoundException {
+        ois.defaultReadObject();
+        INSTANCE = this;
     }
 
     public void printAbsPath() {
@@ -233,8 +253,6 @@ class OSFileSystem {
 
         return success;
     }
-    
-    
 
     public void listFilesAndFolders(boolean recursive, String dirName) {
         FSObject currentFolderTemp = null;
@@ -258,11 +276,6 @@ class OSFileSystem {
     public void createFile(String fileName) {
         currentPath.createFile(fileName);
     }
-
-    public void clean() {
-        osFileSystem = null;
-    }
-
 }
 
 interface Command {
@@ -469,12 +482,23 @@ class Quit implements Command {
  */
 public class Main {
     
-    
+    private static final String FS_SERIALIZATION_NAME = "FileSystem.txt";
+    //private static final boolean FS_SERIALIZATION_NAME = "FileSystem.txt";
+
     public static void main(String[] args) {
         /* Enter your code here. Read input from STDIN. Print output to STDOUT */
+        
+        /* Adding this check due if I serialize/desserialize the FileSystem it contains garbage
+        * from previous tests. The correct way should be call clean() before to run the every test.
+        */
+        boolean runUnitTests = (args.length > 0 && args[0].compareTo("RunUnitTests") == 0);
 
         Scanner sc = new Scanner(System.in);
         String strCommand;
+        
+        if(!runUnitTests) {
+            deserializeFS();
+        }
 
         do {
             strCommand = sc.nextLine();
@@ -504,7 +528,52 @@ public class Main {
 
         } while(true);
 
-        OSFileSystem.getFileSystem().clean();
+        if(!runUnitTests) {
+            serializeFS();
+        } else {
+            OSFileSystem.getFileSystem().clean();
+        }
+
         sc.close();
+    }
+
+    private static void serializeFS() {
+        
+        FileOutputStream file;
+        ObjectOutputStream out;
+
+        try {
+            file = new FileOutputStream(FS_SERIALIZATION_NAME);
+            out = new ObjectOutputStream(file);
+            
+            out.writeObject(OSFileSystem.getFileSystem());
+
+            out.close();
+            file.close();
+        }
+        catch (IOException ex) {
+            Logger.log(ex.toString());
+        }
+    }
+
+    private static void deserializeFS() {
+        FileInputStream file;
+        ObjectInputStream input;
+        OSFileSystem fileSystem;
+
+        try {
+            file = new FileInputStream(FS_SERIALIZATION_NAME);
+            input = new ObjectInputStream(file);
+            
+            fileSystem = (OSFileSystem) input.readObject();
+
+            input.close();
+            file.close();
+        }
+        catch (IOException ex) {
+            Logger.log(ex.toString());
+        } catch (ClassNotFoundException c) {
+            Logger.log(c.toString());
+        }
     }
 }
