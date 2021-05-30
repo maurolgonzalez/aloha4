@@ -167,6 +167,7 @@ class FSObject implements Serializable {
  */
 class OSFileSystem implements Serializable{
     private static OSFileSystem INSTANCE = new OSFileSystem();
+    private static final String FS_SERIALIZATION_NAME = "FileSystem.txt";
     private FSObject root;
     private FSObject currentPath;
 
@@ -275,6 +276,45 @@ class OSFileSystem implements Serializable{
 
     public void createFile(String fileName) {
         currentPath.createFile(fileName);
+    }
+
+    public static void serialize() {
+        
+        FileOutputStream file;
+        ObjectOutputStream out;
+
+        try {
+            file = new FileOutputStream(FS_SERIALIZATION_NAME);
+            out = new ObjectOutputStream(file);
+            
+            out.writeObject(OSFileSystem.getFileSystem());
+
+            out.close();
+            file.close();
+        }
+        catch (IOException ex) {
+            Logger.log(ex.toString());
+        }
+    }
+
+    public static void deserialize() {
+        FileInputStream file;
+        ObjectInputStream input;
+
+        try {
+            file = new FileInputStream(FS_SERIALIZATION_NAME);
+            input = new ObjectInputStream(file);
+            
+            INSTANCE = (OSFileSystem) input.readObject();
+
+            input.close();
+            file.close();
+        }
+        catch (IOException ex) {
+            Logger.log(ex.toString());
+        } catch (ClassNotFoundException c) {
+            Logger.log(c.toString());
+        }
     }
 }
 
@@ -480,10 +520,7 @@ class Quit implements Command {
 /**
  * The entry point for the Test program
  */
-public class Main {
-    
-    private static final String FS_SERIALIZATION_NAME = "FileSystem.txt";
-    //private static final boolean FS_SERIALIZATION_NAME = "FileSystem.txt";
+public class Main {  
 
     public static void main(String[] args) {
         /* Enter your code here. Read input from STDIN. Print output to STDOUT */
@@ -497,7 +534,7 @@ public class Main {
         String strCommand;
         
         if(!runUnitTests) {
-            deserializeFS();
+            OSFileSystem.deserialize();
         }
 
         do {
@@ -529,51 +566,11 @@ public class Main {
         } while(true);
 
         if(!runUnitTests) {
-            serializeFS();
+            OSFileSystem.serialize();
         } else {
             OSFileSystem.getFileSystem().clean();
         }
 
         sc.close();
-    }
-
-    private static void serializeFS() {
-        
-        FileOutputStream file;
-        ObjectOutputStream out;
-
-        try {
-            file = new FileOutputStream(FS_SERIALIZATION_NAME);
-            out = new ObjectOutputStream(file);
-            
-            out.writeObject(OSFileSystem.getFileSystem());
-
-            out.close();
-            file.close();
-        }
-        catch (IOException ex) {
-            Logger.log(ex.toString());
-        }
-    }
-
-    private static void deserializeFS() {
-        FileInputStream file;
-        ObjectInputStream input;
-        OSFileSystem fileSystem;
-
-        try {
-            file = new FileInputStream(FS_SERIALIZATION_NAME);
-            input = new ObjectInputStream(file);
-            
-            fileSystem = (OSFileSystem) input.readObject();
-
-            input.close();
-            file.close();
-        }
-        catch (IOException ex) {
-            Logger.log(ex.toString());
-        } catch (ClassNotFoundException c) {
-            Logger.log(c.toString());
-        }
     }
 }
