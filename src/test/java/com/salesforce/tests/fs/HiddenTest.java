@@ -66,7 +66,7 @@ public class HiddenTest extends BaseTest {
     public void testCommandErrors() {
         String[] expectedResults = {
                 "Unrecognized command\n",
-                "Invalid Command\n",
+                "Directory not found\n", // I must to change this due "ls efg" could be a valid command if folder exist
                 "Invalid Command\n",
                 "Invalid Command\n"
         };

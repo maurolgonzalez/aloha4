@@ -52,6 +52,7 @@ class FSObject {
     private ArrayList<FSObject> childs;
     private FSType type;
     private final String SEPARATOR = "/";
+    private final int MAX_CHARS = 100;
 
     public FSObject(String name, FSType type, FSObject father) {
         this.name = name;
@@ -104,14 +105,8 @@ class FSObject {
         return null;
     }
 
-    public boolean equals(FSObject otherNode) {
-        return this.name == otherNode.name 
-            && this.type == otherNode.type 
-            && this.father == otherNode.father;
-    }
-
     public void createDir(String dirName) {
-        if(dirName.length() >= 100) {
+        if(dirName.length() >= MAX_CHARS) {
             System.out.println(Errors.INVALID_FILE_DIR.toString());
         } else {
             if(!this.existDir(dirName)) {
@@ -144,7 +139,7 @@ class FSObject {
     }
 
     public void createFile(String fileName) {
-        if(fileName.length() >= 100) {
+        if(fileName.length() >= MAX_CHARS) {
             System.out.println(Errors.INVALID_FILE_DIR.toString());
         } else if(!this.existFile(fileName)) {
             FSObject file = new FSObject(fileName, FSType.FILE, this);
@@ -181,12 +176,12 @@ class OSFileSystem {
         currentPath.createDir(dirName);
     }
 
-    public void changeDir(String dirName) {
+    private boolean changeDir(String dirName) {
         boolean foundDir = true;
 
         if (dirName.compareTo("..") == 0 && currentPath.getFather() == null) {
             // This is root. Do nothing
-            return;
+            return true;
         } else if (dirName.compareTo("..") == 0 && currentPath.getFather() != null) {
             currentPath = currentPath.getFather();
         } else if (dirName.compareTo(".") != 0) {
@@ -201,10 +196,54 @@ class OSFileSystem {
         if(!foundDir) {
             System.out.println(Errors.DIR_NOT_FOUND.toString());
         }
+
+        return foundDir;
     }
 
-    public void listFilesAndFolders(boolean recursive) {
+    /**
+    * Use a multi-faceted dir list.
+    * Ex. subdir1/subdir1-1/subdir3
+    */
+    public boolean changeDir(String[] dirList) {
+        // Save current folder
+        FSObject currentFolderTemp = currentPath;
+        boolean success = true;
+
+        for(String dir: dirList) {
+            if(!this.changeDir(dir))
+            {
+                success = false;
+                break;
+            }
+        }
+
+        if(!success) {
+            // Restore current folder
+            currentPath = currentFolderTemp;
+        }
+
+        return success;
+    }
+    
+    
+
+    public void listFilesAndFolders(boolean recursive, String dirName) {
+        FSObject currentFolderTemp = null;
+        
+        // This is a ls command over a subdirectory, so save current folder
+        if (dirName.length() > 0) {
+            currentFolderTemp = currentPath;
+            if(!this.changeDir(dirName.split("/"))) {
+                return;
+            }
+        }
+
         currentPath.listFilesAndFolders(recursive);
+
+        // Restore current folder
+        if (dirName.length() > 0) {
+            currentPath = currentFolderTemp;
+        }
     }
 
     public void createFile(String fileName) {
@@ -252,21 +291,27 @@ class ListContent implements Command {
     private boolean recursive = false;
     private final String strRecursive = "-r";
     private String command;
+    private String dirName;
 
     public ListContent(String command)
     {
         this.command = command;
+        this.dirName = "";
     }
 
     public boolean validate() {
         String[] splittedCommands = command.split(" ");
         boolean valid = true;
 
-        if (splittedCommands.length > 2
-                || (splittedCommands.length == 2 && splittedCommands[1].compareTo(strRecursive) != 0)) {
+        if (splittedCommands.length > 3) {
             valid = false;
         } else if (splittedCommands.length == 2 && splittedCommands[1].compareTo(strRecursive) == 0) {
             recursive = true;
+        } else if (splittedCommands.length == 2 && splittedCommands[1].compareTo(strRecursive) != 0) {
+            dirName = splittedCommands[1];
+        } else if (splittedCommands.length == 3 && splittedCommands[1].compareTo(strRecursive) == 0) {
+            recursive = true;
+            dirName = splittedCommands[2];
         }
 
         return valid;
@@ -275,7 +320,7 @@ class ListContent implements Command {
     public void execute()
     {
         if(validate()) {
-            OSFileSystem.getFileSystem().listFilesAndFolders(recursive);
+            OSFileSystem.getFileSystem().listFilesAndFolders(recursive, dirName);
         }
         else {
             System.out.println(Errors.INVALID_COMMAND.toString());
@@ -343,7 +388,7 @@ class CreateFile implements Command {
 
 class ChangeDir implements Command {
 
-    private String dirName = "";
+    private String[] multiDir;
     private String command;
 
     public ChangeDir(String command) {
@@ -355,7 +400,8 @@ class ChangeDir implements Command {
         boolean valid = true;
 
         if (splittedCommands.length == 2) {
-            dirName = splittedCommands[1];
+            String dirName = splittedCommands[1];
+            multiDir = dirName.split("/");
         } else {
             valid = false;
         }
@@ -365,7 +411,7 @@ class ChangeDir implements Command {
 
     public void execute() {
         if(validate()){
-            OSFileSystem.getFileSystem().changeDir(dirName);
+            OSFileSystem.getFileSystem().changeDir(multiDir);
         } else {
             System.out.println(Errors.INVALID_COMMAND.toString());
         }
