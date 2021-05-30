@@ -46,13 +46,16 @@ enum Errors {
     }
 }
 
+/**
+ * FSObject: Represent a file or folder into a File System
+ */
 class FSObject {
     private String name;
     private FSObject father;
     private ArrayList<FSObject> childs;
     private FSType type;
-    private final String SEPARATOR = "/";
-    private final int MAX_CHARS = 100;
+    public static final String SEPARATOR = "/";
+    public static final int MAX_CHARS = 100;
 
     public FSObject(String name, FSType type, FSObject father) {
         this.name = name;
@@ -106,15 +109,11 @@ class FSObject {
     }
 
     public void createDir(String dirName) {
-        if(dirName.length() >= MAX_CHARS) {
-            System.out.println(Errors.INVALID_FILE_DIR.toString());
+        if (!this.existDir(dirName)) {
+            childs.add(new FSObject(dirName, FSType.FOLDER, this));
         } else {
-            if(!this.existDir(dirName)) {
-                childs.add(new FSObject(dirName, FSType.FOLDER, this));
-            } else {
-                System.out.println(Errors.DIR_ALREADY_EXIST.toString());
-            }
-        }        
+            System.out.println(Errors.DIR_ALREADY_EXIST.toString());
+        }
     }
 
     public void listFilesAndFolders(boolean recursive) {
@@ -139,17 +138,16 @@ class FSObject {
     }
 
     public void createFile(String fileName) {
-        if(fileName.length() >= MAX_CHARS) {
-            System.out.println(Errors.INVALID_FILE_DIR.toString());
-        } else if(!this.existFile(fileName)) {
+        if(!this.existFile(fileName)) {
             FSObject file = new FSObject(fileName, FSType.FILE, this);
             childs.add(file);
         }
     }
-
-
 }
 
+/**
+ * OSFileSystem: Represent a file system to operate on it
+ */
 class OSFileSystem {
     private static OSFileSystem osFileSystem;
     private FSObject root;
@@ -201,7 +199,7 @@ class OSFileSystem {
     }
 
     /**
-    * Use a multi-faceted dir list.
+    * Use a multi-faceted dir list. Could receive 1 or more dirs.
     * Ex. subdir1/subdir1-1/subdir3
     */
     public boolean changeDir(String[] dirList) {
@@ -233,7 +231,7 @@ class OSFileSystem {
         // This is a ls command over a subdirectory, so save current folder
         if (dirName.length() > 0) {
             currentFolderTemp = currentPath;
-            if(!this.changeDir(dirName.split("/"))) {
+            if(!this.changeDir(dirName.split(FSObject.SEPARATOR))) {
                 return;
             }
         }
@@ -255,7 +253,11 @@ class OSFileSystem {
     }
 
 }
+
 interface Command {
+    public static final String ARG_DELIMITER = " ";
+    public static final String ARG_RECURSIVE = "-r";
+
     public void execute();
     public boolean validate();
 }
@@ -268,7 +270,7 @@ class CurrentDir implements Command{
     }
 
     public boolean validate() {
-        String[] splittedCommands = command.split(" ");
+        String[] splittedCommands = command.split(Command.ARG_DELIMITER);
         boolean valid = true;
 
         if (splittedCommands.length != 1) {
@@ -289,7 +291,6 @@ class CurrentDir implements Command{
 class ListContent implements Command {
 
     private boolean recursive = false;
-    private final String strRecursive = "-r";
     private String command;
     private String dirName;
 
@@ -300,16 +301,16 @@ class ListContent implements Command {
     }
 
     public boolean validate() {
-        String[] splittedCommands = command.split(" ");
+        String[] splittedCommands = command.split(Command.ARG_DELIMITER);
         boolean valid = true;
 
         if (splittedCommands.length > 3) {
             valid = false;
-        } else if (splittedCommands.length == 2 && splittedCommands[1].compareTo(strRecursive) == 0) {
+        } else if (splittedCommands.length == 2 && splittedCommands[1].compareTo(Command.ARG_RECURSIVE) == 0) {
             recursive = true;
-        } else if (splittedCommands.length == 2 && splittedCommands[1].compareTo(strRecursive) != 0) {
+        } else if (splittedCommands.length == 2 && splittedCommands[1].compareTo(Command.ARG_RECURSIVE) != 0) {
             dirName = splittedCommands[1];
-        } else if (splittedCommands.length == 3 && splittedCommands[1].compareTo(strRecursive) == 0) {
+        } else if (splittedCommands.length == 3 && splittedCommands[1].compareTo(Command.ARG_RECURSIVE) == 0) {
             recursive = true;
             dirName = splittedCommands[2];
         }
@@ -338,11 +339,16 @@ class CreateDir implements Command {
     }
 
     public boolean validate() {
-        String[] splittedCommands = command.split(" ");
+        String[] splittedCommands = command.split(Command.ARG_DELIMITER);
         boolean valid = true;
 
         if (splittedCommands.length == 2) {
             dirName = splittedCommands[1];
+
+            if(dirName.length() >= FSObject.MAX_CHARS) {
+                System.out.println(Errors.INVALID_FILE_DIR.toString());
+                valid = false;
+            }
         } else {
             valid = false;
         }
@@ -367,11 +373,16 @@ class CreateFile implements Command {
     }
 
     public boolean validate() {
-        String[] splittedCommands = command.split(" ");
+        String[] splittedCommands = command.split(Command.ARG_DELIMITER);
         boolean valid = true;
 
         if (splittedCommands.length == 2) {
             fileName = splittedCommands[1];
+
+            if(fileName.length() >= FSObject.MAX_CHARS) {
+                System.out.println(Errors.INVALID_FILE_DIR.toString());
+                valid = false;
+            }
         } else {
             valid = false;
         }
@@ -396,12 +407,12 @@ class ChangeDir implements Command {
     }
 
     public boolean validate() {
-        String[] splittedCommands = command.split(" ");
+        String[] splittedCommands = command.split(Command.ARG_DELIMITER);
         boolean valid = true;
 
         if (splittedCommands.length == 2) {
             String dirName = splittedCommands[1];
-            multiDir = dirName.split("/");
+            multiDir = dirName.split(FSObject.SEPARATOR);
         } else {
             valid = false;
         }
@@ -427,7 +438,7 @@ class Quit implements Command {
     }
 
     public boolean validate() {
-        String[] splittedCommands = command.split(" ");
+        String[] splittedCommands = command.split(Command.ARG_DELIMITER);
         boolean valid = true;
 
         if (splittedCommands.length != 1) {

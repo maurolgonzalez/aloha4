@@ -40,7 +40,7 @@ public class YourUnitTest extends BaseTest{
                 "sub1-file1\n",         // ls sub1
                 "sub2\n",
                 
-                "sub2-file1\n",        // ls sub1/sub2 TODO: Fail
+                "sub2-file1\n",        // ls sub1/sub2
                 
                 "/root/sub1\n",         // ls -r sub1
                 "sub1-file1\n",
