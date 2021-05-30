@@ -46,6 +46,17 @@ enum Errors {
     }
 }
 
+class Logger {
+    static public void log(String s) {
+        System.out.println(s);
+    }
+
+    static public void log(Errors e) {
+        System.out.println(e.toString());
+    }
+
+    private Logger() {}
+}
 /**
  * FSObject: Represent a file or folder into a File System
  */
@@ -77,7 +88,7 @@ class FSObject {
     }
 
     public void printAbsPath() {
-        System.out.println(getAbsPath());
+        Logger.log(getAbsPath());
     }
 
     public boolean existDir(String dirName) {
@@ -112,7 +123,7 @@ class FSObject {
         if (!this.existDir(dirName)) {
             childs.add(new FSObject(dirName, FSType.FOLDER, this));
         } else {
-            System.out.println(Errors.DIR_ALREADY_EXIST.toString());
+            Logger.log(Errors.DIR_ALREADY_EXIST);
         }
     }
 
@@ -121,14 +132,14 @@ class FSObject {
             printAbsPath();
         }else if(father == null) {
             // Print only if root. I don't know why the Unit Test "testLsSimple" need this.
-            System.out.println(this);
+            Logger.log(this.toString());
         }
 
         for(FSObject item: childs) {
             if(recursive && item.type == FSType.FOLDER) {
                 item.listFilesAndFolders(true);
             } else {
-                System.out.println(item.name);
+                Logger.log(item.name);
             }
         }
     }
@@ -192,7 +203,7 @@ class OSFileSystem {
         }
 
         if(!foundDir) {
-            System.out.println(Errors.DIR_NOT_FOUND.toString());
+            Logger.log(Errors.DIR_NOT_FOUND);
         }
 
         return foundDir;
@@ -324,7 +335,7 @@ class ListContent implements Command {
             OSFileSystem.getFileSystem().listFilesAndFolders(recursive, dirName);
         }
         else {
-            System.out.println(Errors.INVALID_COMMAND.toString());
+            Logger.log(Errors.INVALID_COMMAND);
         }
     }
 }
@@ -346,7 +357,7 @@ class CreateDir implements Command {
             dirName = splittedCommands[1];
 
             if(dirName.length() >= FSObject.MAX_CHARS) {
-                System.out.println(Errors.INVALID_FILE_DIR.toString());
+                Logger.log(Errors.INVALID_FILE_DIR);
                 valid = false;
             }
         } else {
@@ -380,7 +391,7 @@ class CreateFile implements Command {
             fileName = splittedCommands[1];
 
             if(fileName.length() >= FSObject.MAX_CHARS) {
-                System.out.println(Errors.INVALID_FILE_DIR.toString());
+                Logger.log(Errors.INVALID_FILE_DIR);
                 valid = false;
             }
         } else {
@@ -424,7 +435,7 @@ class ChangeDir implements Command {
         if(validate()){
             OSFileSystem.getFileSystem().changeDir(multiDir);
         } else {
-            System.out.println(Errors.INVALID_COMMAND.toString());
+            Logger.log(Errors.INVALID_COMMAND);
         }
     }
 }
@@ -443,7 +454,7 @@ class Quit implements Command {
 
         if (splittedCommands.length != 1) {
             valid = false;
-            System.out.println(Errors.INVALID_COMMAND.toString());
+            Logger.log(Errors.INVALID_COMMAND);
         }
 
         return valid;
@@ -489,7 +500,7 @@ public class Main {
             if(cmd != null)
                 cmd.execute();
             else
-                System.out.println(Errors.UNRECOGNIZED_COMMAND.toString());
+                Logger.log(Errors.UNRECOGNIZED_COMMAND);
 
         } while(true);
 
