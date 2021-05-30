@@ -1,8 +1,5 @@
 package com.salesforce.tests.fs;
 
-import java.io.File;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Scanner;
 
@@ -10,11 +7,50 @@ enum FSType {
     FILE, FOLDER
 }
 
+enum CommandsName { 
+    PWD("pwd"),
+    LS("ls"),
+    MKDIR("mkdir"),
+    CD("cd"),
+    TOUCh("touch"),
+    QUIT("quit");
+
+    private final String text;
+    
+    CommandsName(final String text) {
+        this.text = text;
+    }
+
+    @Override
+    public String toString() {
+        return text;
+    }
+}
+
+enum Errors {
+    INVALID_FILE_DIR("Invalid File or Folder Name"),
+    INVALID_COMMAND("Invalid Command"),
+    DIR_ALREADY_EXIST("Directory already exists"),
+    DIR_NOT_FOUND("Directory not found"),
+    UNRECOGNIZED_COMMAND("Unrecognized command");
+
+    private final String text;
+    
+    Errors(final String text) {
+        this.text = text;
+    }
+
+    @Override
+    public String toString() {
+        return text;
+    }
+}
+
 class FSObject {
-    String name;
-    FSObject father;
-    ArrayList<FSObject> childs;
-    FSType type;
+    private String name;
+    private FSObject father;
+    private ArrayList<FSObject> childs;
+    private FSType type;
     private final String SEPARATOR = "/";
 
     public FSObject(String name, FSType type, FSObject father) {
@@ -49,6 +85,15 @@ class FSObject {
         return false;
     }
 
+    private boolean existFile(String fileName) {
+        for(FSObject item: childs) {
+            if(item.name.compareTo(fileName) == 0 && item.type == FSType.FILE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public FSObject getSubfolder(String dirName) {
         for(FSObject item: childs) {
             if(item.name.compareTo(dirName) == 0 && item.type == FSType.FOLDER) {
@@ -59,7 +104,6 @@ class FSObject {
         return null;
     }
 
-
     public boolean equals(FSObject otherNode) {
         return this.name == otherNode.name 
             && this.type == otherNode.type 
@@ -68,15 +112,47 @@ class FSObject {
 
     public void createDir(String dirName) {
         if(dirName.length() >= 100) {
-            System.out.println("Invalid File or Folder Name");
+            System.out.println(Errors.INVALID_FILE_DIR.toString());
         } else {
             if(!this.existDir(dirName)) {
                 childs.add(new FSObject(dirName, FSType.FOLDER, this));
             } else {
-                System.out.println("Directory already exists");
+                System.out.println(Errors.DIR_ALREADY_EXIST.toString());
             }
         }        
     }
+
+    public void listFilesAndFolders(boolean recursive) {
+        if(recursive) {
+            printAbsPath();
+        }else if(father == null) {
+            // Print only if root. I don't know why the Unit Test "testLsSimple" need this.
+            System.out.println(this);
+        }
+
+        for(FSObject item: childs) {
+            if(recursive && item.type == FSType.FOLDER) {
+                item.listFilesAndFolders(true);
+            } else {
+                System.out.println(item.name);
+            }
+        }
+    }
+
+    public FSObject getFather() {
+        return father;
+    }
+
+    public void createFile(String fileName) {
+        if(fileName.length() >= 100) {
+            System.out.println(Errors.INVALID_FILE_DIR.toString());
+        } else if(!this.existFile(fileName)) {
+            FSObject file = new FSObject(fileName, FSType.FILE, this);
+            childs.add(file);
+        }
+    }
+
+
 }
 
 class OSFileSystem {
@@ -106,103 +182,217 @@ class OSFileSystem {
     }
 
     public void changeDir(String dirName) {
-        FSObject subFolder = currentPath.getSubfolder(dirName);
-        if(subFolder == null) {
-            System.out.println("Directory not found");
-        } else {
-            currentPath = subFolder;
+        boolean foundDir = true;
+
+        if (dirName.compareTo("..") == 0 && currentPath.getFather() == null) {
+            // This is root. Do nothing
+            return;
+        } else if (dirName.compareTo("..") == 0 && currentPath.getFather() != null) {
+            currentPath = currentPath.getFather();
+        } else if (dirName.compareTo(".") != 0) {
+            FSObject subFolder = currentPath.getSubfolder(dirName);
+            if (subFolder != null) {
+                currentPath = subFolder;
+            } else {
+                foundDir = false;
+            }
         }
+
+        if(!foundDir) {
+            System.out.println(Errors.DIR_NOT_FOUND.toString());
+        }
+    }
+
+    public void listFilesAndFolders(boolean recursive) {
+        currentPath.listFilesAndFolders(recursive);
+    }
+
+    public void createFile(String fileName) {
+        currentPath.createFile(fileName);
+    }
+
+    public void clean() {
+        osFileSystem = null;
     }
 
 }
 interface Command {
     public void execute();
+    public boolean validate();
 }
 
 class CurrentDir implements Command{
+    private String command;
 
-    public void execute()
-    {
-        OSFileSystem.getFileSystem().printAbsPath();
+    public CurrentDir(String command) {
+        this.command = command;
+    }
+
+    public boolean validate() {
+        String[] splittedCommands = command.split(" ");
+        boolean valid = true;
+
+        if (splittedCommands.length != 1) {
+            valid = false;
+        }
+
+        return valid;
+    }
+
+    public void execute() {
+        if (validate()) {
+            OSFileSystem.getFileSystem().printAbsPath();
+        }
+
     }
 }
 
 class ListContent implements Command {
 
     private boolean recursive = false;
+    private final String strRecursive = "-r";
+    private String command;
 
     public ListContent(String command)
     {
+        this.command = command;
+    }
+
+    public boolean validate() {
         String[] splittedCommands = command.split(" ");
-        if(splittedCommands.length == 2 && splittedCommands[1].compareTo("-r") == 0)        
-        {
+        boolean valid = true;
+
+        if (splittedCommands.length > 2
+                || (splittedCommands.length == 2 && splittedCommands[1].compareTo(strRecursive) != 0)) {
+            valid = false;
+        } else if (splittedCommands.length == 2 && splittedCommands[1].compareTo(strRecursive) == 0) {
             recursive = true;
         }
-    }
 
-    public void execute()
-    {        
-        listFiles(".");
-    }
-
-    private void listFiles(String path)
-    {
-        File files = new File(path);
-        File[] fileList = files.listFiles();
-
-        if(recursive)
-        {
-            Path current_full_path = Paths.get(path);
-            System.out.println(current_full_path.toAbsolutePath());
-        }
-        
-        for (File current_file: fileList)
-        {
-            System.out.println(current_file);
-            if(recursive && current_file.isDirectory())
-            {
-                listFiles(current_file.toString());
-            }
-        }
-        
-    }
-}
-
-class CreateDir implements Command{
-
-    private String dirName = "";
-
-    public CreateDir(String command)
-    {
-        String[] splittedCommands = command.split(" ");
-        if(splittedCommands.length == 2)
-        {
-            dirName = splittedCommands[1];
-        }
+        return valid;
     }
 
     public void execute()
     {
-        OSFileSystem.getFileSystem().createDir(dirName);
+        if(validate()) {
+            OSFileSystem.getFileSystem().listFilesAndFolders(recursive);
+        }
+        else {
+            System.out.println(Errors.INVALID_COMMAND.toString());
+        }
     }
 }
 
-class ChangeDir implements Command{
+class CreateDir implements Command {
 
     private String dirName = "";
+    private String command;
 
-    public ChangeDir(String command)
-    {
+    public CreateDir(String command) {
+        this.command = command;
+    }
+
+    public boolean validate() {
         String[] splittedCommands = command.split(" ");
-        if(splittedCommands.length == 2)
-        {
+        boolean valid = true;
+
+        if (splittedCommands.length == 2) {
             dirName = splittedCommands[1];
+        } else {
+            valid = false;
         }
+
+        return valid;
     }
 
     public void execute() {
+        if(validate()) {
+            OSFileSystem.getFileSystem().createDir(dirName);
+        }
+    }
+}
 
-        OSFileSystem.getFileSystem().changeDir(dirName);        
+class CreateFile implements Command {
+
+    private String fileName = "";
+    private String command;
+
+    public CreateFile(String command) {
+        this.command = command;
+    }
+
+    public boolean validate() {
+        String[] splittedCommands = command.split(" ");
+        boolean valid = true;
+
+        if (splittedCommands.length == 2) {
+            fileName = splittedCommands[1];
+        } else {
+            valid = false;
+        }
+
+        return valid;
+    }
+
+    public void execute() {
+        if(validate()) {
+            OSFileSystem.getFileSystem().createFile(fileName);
+        }
+    }
+}
+
+class ChangeDir implements Command {
+
+    private String dirName = "";
+    private String command;
+
+    public ChangeDir(String command) {
+        this.command = command;
+    }
+
+    public boolean validate() {
+        String[] splittedCommands = command.split(" ");
+        boolean valid = true;
+
+        if (splittedCommands.length == 2) {
+            dirName = splittedCommands[1];
+        } else {
+            valid = false;
+        }
+
+        return valid;
+    }
+
+    public void execute() {
+        if(validate()){
+            OSFileSystem.getFileSystem().changeDir(dirName);
+        } else {
+            System.out.println(Errors.INVALID_COMMAND.toString());
+        }
+    }
+}
+
+class Quit implements Command {
+
+    private String command = "";
+
+    public Quit(String command) {
+        this.command = command;
+    }
+
+    public boolean validate() {
+        String[] splittedCommands = command.split(" ");
+        boolean valid = true;
+
+        if (splittedCommands.length != 1) {
+            valid = false;
+            System.out.println(Errors.INVALID_COMMAND.toString());
+        }
+
+        return valid;
+    }
+
+    public void execute() {
     }
 }
 
@@ -216,37 +406,37 @@ public class Main {
         /* Enter your code here. Read input from STDIN. Print output to STDOUT */
 
         Scanner sc = new Scanner(System.in);
-        String command;
+        String strCommand;
 
         do {
-            command = sc.nextLine();
+            strCommand = sc.nextLine();
             Command cmd = null;
 
-            if(command.compareTo("quit") == 0)
-            {
-                break;
-            } else if(command.compareTo("pwd") == 0)
-            {
-                cmd = new CurrentDir();
-            }                
-            else if(command.startsWith("ls"))
-            {
-                cmd = new ListContent(command);
-            } else if(command.startsWith("mkdir"))
-            {
-                cmd = new CreateDir(command);
-            } else if(command.startsWith("cd"))
-            {
-                cmd = new ChangeDir(command);
-            } 
+            if (strCommand.startsWith(CommandsName.QUIT.toString())) {
+                cmd = new Quit(strCommand);
+                if (cmd.validate()) {
+                    break;
+                }
+            } else if (strCommand.startsWith(CommandsName.PWD.toString())) {
+                cmd = new CurrentDir(strCommand);
+            } else if (strCommand.startsWith(CommandsName.LS.toString())) {
+                cmd = new ListContent(strCommand);
+            } else if (strCommand.startsWith(CommandsName.MKDIR.toString())) {
+                cmd = new CreateDir(strCommand);
+            } else if (strCommand.startsWith(CommandsName.CD.toString())) {
+                cmd = new ChangeDir(strCommand);
+            } else if (strCommand.startsWith(CommandsName.TOUCh.toString())) {
+                cmd = new CreateFile(strCommand);
+            }
 
             if(cmd != null)
                 cmd.execute();
             else
-                System.out.println("Unrecognized command");
+                System.out.println(Errors.UNRECOGNIZED_COMMAND.toString());
 
         } while(true);
 
+        OSFileSystem.getFileSystem().clean();
         sc.close();
     }
 }
